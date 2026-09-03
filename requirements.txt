@@ -1,0 +1,6 @@
+# Razorpay and the LLM providers are plain REST APIs, so no vendor SDKs.
+httpx>=0.27
+python-dotenv>=1.0
+pytest>=8.0
+fastapi>=0.110
+uvicorn>=0.29
