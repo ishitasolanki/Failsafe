@@ -232,7 +232,9 @@ def main():
     else:
         source = "keyword rules only - NO LLM KEY SET, so the model row below is the baseline"
 
-    failsafe_outcomes = agent.run_batch(payments, "failsafe", f"eval_{args.split}")
+    failsafe_outcomes = agent.run_batch(
+        payments, "failsafe", f"eval_{args.split}", cache=cache
+    )
     naive_outcomes = agent.run_batch(payments, "naive", f"eval_{args.split}_naive")
 
     failsafe = summarise(payments, failsafe_outcomes, "failsafe")

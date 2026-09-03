@@ -39,10 +39,10 @@ so the only difference between the two columns is strategy.
 
 | Metric | Naive retry | Failsafe | Delta |
 |---|---:|---:|---:|
-| Recovered | 10 | **33** | +23 |
-| Recovery rate | 16.7% | **55.0%** | +38.3pp |
-| Money recovered | ₹155,297 | **₹332,341** | +₹177,044 |
-| Actions spent | 163 | **96** | −67 |
+| Recovered | 10 | **35** | +25 |
+| Recovery rate | 16.7% | **58.3%** | +41.7pp |
+| Money recovered | ₹155,297 | **₹472,599** | +₹317,302 |
+| Actions spent | 163 | **102** | −61 |
 | Wasted actions | 36 | **15** | −21 |
 | Compliance violations | 21 | **0** | −21 |
 
@@ -61,13 +61,14 @@ Reported because a metric without its cost is marketing:
 
 - **15 wasted actions.** Money actions spent on payments that could never have
   been recovered by anything. Lower than the baseline's 36, not zero.
-- **27 of 60 payments were not recovered.** Every one is listed in
+- **25 of 60 payments were not recovered.** Every one is listed in
   [report.md](report.md) with the reason it stopped. Nothing is filtered out.
 - **Some of those stops are correct.** `MANDATE_REVOKED` and `SUSPECTED_FRAUD`
   recover 0% *by design*. Stopping is the right answer, and counting them as
   failures would misrepresent what the agent is for.
-- **The diagnosis numbers in this repo are rules-only** until an LLM key is
-  configured, because the run that produced them had none. See below.
+- **Diagnosis is 80% accurate, not 95%.** Twelve of sixty payments were
+  misdiagnosed. The policy layer is built on the assumption that this number
+  will never be perfect.
 
 ## How it works
 
@@ -107,6 +108,25 @@ Reported because a metric without its cost is marketing:
      audit trail (append-only sqlite; every step, every rule that fired)
 ```
 
+### Does the LLM actually earn its place?
+
+Measured, not assumed. The model is scored against a keyword lookup over the
+error string, on the same 60 payments:
+
+| | Keyword lookup | Model (gpt-oss-120b) |
+|---|---:|---:|
+| All payments | 75.0% | **80.0%** |
+| Generic error string (18 payments) | 16.7% | **33.3%** |
+
+The second row is the one that matters. Those payments carry an error like
+`"Payment failed. Please try again."` — no answer in the string at all. The
+archetype has to come from context: how many other customers failed at that
+bank in the last hour, how often this customer has failed before, the method,
+the amount, the time of day. The model doubles the lookup table there.
+
+It is still only 33.3%, and that is the honest headline. A lookup table is not
+a competitor on those rows; a better prompt or a larger model is.
+
 ### The one design decision worth arguing about
 
 **The LLM classifies. It never chooses the money action.**
@@ -141,9 +161,12 @@ python -m pytest test_policy.py -q    # prove the stopping rules hold
 python evaluate.py --split heldout    # the headline numbers + report.md
 ```
 
-**No API keys needed.** Diagnoses are read from the committed
-`diagnosis_cache.json`, so anyone can reproduce the exact numbers above with
-zero credentials and zero cost.
+**No API keys needed.** All 60 diagnoses are read from the committed
+`diagnosis_cache.json`, so anyone reproduces the exact numbers above with zero
+credentials and zero cost. This is verified, not asserted: running with the
+environment stripped produces a byte-identical report. The cache is keyed on the
+prompt version and the payment facts alone — never on the provider — so it stays
+usable on a machine that has no keys at all.
 
 See one payment's full decision chain:
 

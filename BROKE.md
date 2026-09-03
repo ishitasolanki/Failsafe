@@ -137,3 +137,98 @@ order_created  10
 ```
 
 Zero errors, and the batch is genuinely safe to re-run against live test mode.
+
+## 8. My "model accuracy" was the baseline wearing a costume
+
+Plugged in a Groq key, re-ran, and the report said:
+
+```
+diagnosis accuracy   rules 75.0%   model 75.0%
+  on generic errors  rules 16.7%   model 16.7%
+```
+
+Identical to three decimal places. Two numbers that agree that precisely are not
+a finding, they are the same number printed twice.
+
+The audit trail said why:
+
+```
+diagnosis_method  llm   35
+diagnosis_method  rules 25
+llm_reason  "llm unavailable (HTTPStatusError), used rules"  x25
+```
+
+Groq's free tier was rate-limiting, and `diagnose()` catches any exception and
+falls back to the keyword classifier. Twenty-five of sixty diagnoses were never
+the model at all — but they were still being counted in the "model" column.
+
+The fallback itself is right: a rate limit should not crash a batch. What was
+wrong is that it was **silent**, so a degraded run looked exactly like a healthy
+one. Added the same bounded backoff the Razorpay client got, honouring
+`Retry-After`. All 60 diagnoses now come from the model:
+
+```
+diagnosis accuracy   rules 75.0%   model 80.0%
+  on generic errors  rules 16.7%   model 33.3%
+```
+
+The real contribution was hiding behind a fallback that reported success.
+
+Worth stating what nearly happened: I could have shipped "the LLM matches a
+keyword lookup, so the AI adds nothing", concluded the model was decoration, and
+cut it. The measurement was broken, not the model.
+
+## 9. The model that thought itself out of an answer
+
+Groq had retired `llama-3.3-70b-versatile`, so the first live call 404'd. Swapped
+to `openai/gpt-oss-120b` and got empty strings back instead:
+
+```
+finish_reason: length
+completion_tokens: 60
+content:   ''
+reasoning: 'The user asks: "Say {"ok": true}..." The developer says...'
+```
+
+It is a reasoning model. Its thinking is billed against `max_tokens`, and at 60
+tokens it deliberated until the budget ran out and never wrote the answer.
+Raised the budget and set `reasoning_effort: "low"` — this is classification, it
+needs a label, not a meditation.
+
+## 10. The reproducibility claim in my own README was false
+
+The README promised a judge could clone the repo with no API keys and reproduce
+every number from the committed diagnosis cache. I tested it by hiding `.env`
+and re-running, expecting an identical report.
+
+It came back with the baseline's numbers. Every cache lookup had missed.
+
+The cache key was a hash of the prompt version, the payment facts **and the
+currently configured model**. With no key configured that last part resolved to
+`"none"`, so every fingerprint differed from the ones generated on a machine
+that had keys. Sixty misses, sixty silent fallbacks to the keyword classifier,
+and a report that looked plausible while measuring the wrong thing.
+
+Keyed on prompt version and facts only now; the model that produced each answer
+is recorded in the cached value instead, where it stays visible without
+fragmenting the key space.
+
+Fixing that exposed a second one. The reports *still* differed — accuracy now
+matched, but recovery did not. `evaluate.py` loaded the cache once for scoring
+while `run_batch` loaded its own copy, so within a single process the recovery
+run and the scoring pass each made independent LLM calls and disagreed about the
+same payment. One cache is now loaded once and passed in, and sampling is pinned
+to `temperature: 0`.
+
+Verified rather than assumed:
+
+```
+$ mv .env .env.hidden && python evaluate.py --split heldout --out report_nokeys.md
+$ diff report.md report_nokeys.md
+IDENTICAL - a judge with zero credentials reproduces every number
+```
+
+The lesson is the one from §8 again, in a different costume: a fallback that
+reports success is worse than a crash. Both times the system looked healthy
+while quietly measuring something else, and both times only an explicit test of
+the claim caught it.

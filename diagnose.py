@@ -67,12 +67,19 @@ Reply with JSON only, no prose:
 
 
 def _fingerprint(payment: dict) -> str:
-    """Cache key over exactly the facts the model sees, plus prompt and model."""
+    """Cache key over the prompt version and the facts the model sees.
+
+    Deliberately NOT keyed on the provider or model. Keying on those made the
+    committed cache useless to anyone whose environment differed from the
+    machine that generated it — including a judge with no keys at all, who got
+    a miss on every row and silently fell back to the keyword classifier. The
+    model that produced each answer is recorded in the value instead, so it
+    stays visible without fragmenting the key space.
+
+    Bump PROMPT_VERSION to invalidate everything after a prompt change.
+    """
     facts = json.dumps(observable(payment), sort_keys=True)
-    provider = llm.active_provider() or "none"
-    model = llm.model_name(provider) if provider != "none" else "none"
-    blob = f"{PROMPT_VERSION}|{model}|{facts}"
-    return hashlib.sha256(blob.encode()).hexdigest()[:16]
+    return hashlib.sha256(f"{PROMPT_VERSION}|{facts}".encode()).hexdigest()[:16]
 
 
 def load_cache(path=CACHE_PATH):
@@ -137,6 +144,7 @@ def diagnose(payment: dict, cache: dict, allow_llm=True) -> dict:
     if key in cache:
         cached = dict(cache[key])
         cached["method"] = "cache"
+        cached.setdefault("model", "unknown")
         return cached
 
     if not (allow_llm and llm.available()):
@@ -164,7 +172,8 @@ def diagnose(payment: dict, cache: dict, allow_llm=True) -> dict:
         "archetype": parsed["archetype"],
         "confidence": float(parsed.get("confidence", 0.5)),
         "reason": str(parsed.get("reason", ""))[:200],
+        "model": llm.model_name(),
         "method": "llm",
     }
-    cache[key] = {k: result[k] for k in ("archetype", "confidence", "reason")}
+    cache[key] = {k: result[k] for k in ("archetype", "confidence", "reason", "model")}
     return result

@@ -1,1 +1,362 @@
-{}
+{
+ "0409f250dc41f0f0": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.6,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Large amount, single prior failure, low bank-wide failures suggests customer balance issue"
+ },
+ "04217213ae873c05": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "customer balance insufficient, emandate subscription, low bank failures"
+ },
+ "0a029f26f922a009": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.78,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Card error from customer, few prior failures, no bank-wide issues, likely balance shortage"
+ },
+ "10fda1d65d784779": {
+  "archetype": "EXPIRED_CARD",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Error description states card expired, card method"
+ },
+ "17b132953da6d446": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.65,
+  "model": "openai/gpt-oss-120b",
+  "reason": "gateway error, multiple failures at same bank within hour"
+ },
+ "2012ce8688b4dd9d": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "error_description cites insufficient funds, customer source, prior failures"
+ },
+ "20dd94f2f6be7d53": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank failures count, error source bank"
+ },
+ "26e759dec85538f8": {
+  "archetype": "MANDATE_REVOKED",
+  "confidence": 0.98,
+  "model": "openai/gpt-oss-120b",
+  "reason": "subscription emandate cancelled by customer"
+ },
+ "2bef3ceba4bd8fed": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.85,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count_last_hour despite customer source"
+ },
+ "2c07012a8c07c423": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.9,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Card auth timeout, customer source, subscription not relevant"
+ },
+ "30ce2816883dae37": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "authentication step timed out, customer did not complete 3D Secure"
+ },
+ "3613091c7e0f8179": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "authentication step timed out, no bank/system issues"
+ },
+ "37a9d59a5b2e9796": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.93,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Card auth timeout, customer source, single prior failure"
+ },
+ "3856b38454a707e8": {
+  "archetype": "EXPIRED_CARD",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Error description states card expired; card method, no other signals"
+ },
+ "39bad62b5d09c720": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.78,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Card payment, customer error, high prior failures, large amount, low bank failures"
+ },
+ "3a206738dce6592d": {
+  "archetype": "EXPIRED_CARD",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Error description states card expired; card method and subscription irrelevant"
+ },
+ "47c5a01995968f6b": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.92,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count_last_hour despite no prior failures"
+ },
+ "483f759746e71e09": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Bank error source, many failures same hour, gateway error"
+ },
+ "5d4475352bc28650": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.65,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Single card failure, no prior issues, generic gateway error, low bank failure count"
+ },
+ "6187d55393fce1fe": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.9,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count_last_hour despite customer error source"
+ },
+ "618d7ad85df3a4b9": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count_last_hour and bank error source indicate bank outage"
+ },
+ "63a755e24900d78c": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Many UPI failures at same bank, error source bank"
+ },
+ "6530942831aafbd5": {
+  "archetype": "SUSPECTED_FRAUD",
+  "confidence": 0.92,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Risk check decline, many recent failures, wallet method, low bank failures"
+ },
+ "66f478ee917727a2": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.78,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Card payment, customer error source, prior failure, high amount, no bank-wide issues"
+ },
+ "74b33639c79f64a7": {
+  "archetype": "EXPIRED_CARD",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Error description states card expired, card method"
+ },
+ "75c7d03d95040027": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count and bank error source, generic gateway error"
+ },
+ "77b2cd6fbb605e9c": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.68,
+  "model": "openai/gpt-oss-120b",
+  "reason": "customer error source, card payment, no other signals; likely lack of funds"
+ },
+ "783e5a713877bcdc": {
+  "archetype": "MANDATE_REVOKED",
+  "confidence": 0.98,
+  "model": "openai/gpt-oss-120b",
+  "reason": "subscription emandate cancelled by customer"
+ },
+ "7cca762671217cf3": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.78,
+  "model": "openai/gpt-oss-120b",
+  "reason": "gateway error, multiple failures at same bank within hour"
+ },
+ "7e7e02d4673dbfd1": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Customer balance insufficient, error_source customer, prior failures"
+ },
+ "8282d061c207737e": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.78,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count_last_hour despite customer error source"
+ },
+ "8300333e9b7840dc": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "authentication step timed out, 3D Secure not completed"
+ },
+ "887ba70aca08fdc0": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.7,
+  "model": "openai/gpt-oss-120b",
+  "reason": "gateway error, multiple failures at same bank within hour"
+ },
+ "9711c7827232f0bd": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Explicit insufficient funds message, customer source, netbanking"
+ },
+ "9a65f937c82103e2": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.6,
+  "model": "openai/gpt-oss-120b",
+  "reason": "gateway error with no other signals, likely bank/gateway issue"
+ },
+ "9ba0c83eecbe731f": {
+  "archetype": "MANDATE_REVOKED",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "mandate cancelled by customer on subscription"
+ },
+ "9d8d96ac81a1ae62": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "authentication step not completed, card method, no other failures"
+ },
+ "9e439ad1590400ab": {
+  "archetype": "EXPIRED_CARD",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Error description states card expired; card method matches"
+ },
+ "a12fdba3f71c10d8": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Customer balance insufficient, error_source customer, prior failures"
+ },
+ "a2404999c3974f2a": {
+  "archetype": "MANDATE_REVOKED",
+  "confidence": 0.78,
+  "model": "openai/gpt-oss-120b",
+  "reason": "emandate subscription failure, gateway error, no bank-wide issues, likely revoked mandate"
+ },
+ "a754a01bbf6f2c5e": {
+  "archetype": "EXPIRED_CARD",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Error description states card expired; card method matches"
+ },
+ "a888b23f4144547b": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "authentication step timed out, customer error source"
+ },
+ "b418a7bf3ca8ee4a": {
+  "archetype": "MANDATE_REVOKED",
+  "confidence": 0.98,
+  "model": "openai/gpt-oss-120b",
+  "reason": "subscription emandate cancelled by customer"
+ },
+ "b79fbd1533bbad5b": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count_last_hour and bank error source"
+ },
+ "b9cee5055e25d06c": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count_last_hour and bank error source indicate gateway/bank issue"
+ },
+ "c083c0d8ddbb23f8": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.78,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Customer source error, single prior failure, high amount, no bank-wide issues"
+ },
+ "c15930d83314faa1": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Many failures same hour, error source bank"
+ },
+ "d83da29cb07e6583": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.93,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Authentication timeout, customer source, card method"
+ },
+ "de2683c54eb36999": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "3D Secure step not completed, customer error source"
+ },
+ "df191b01b37d4426": {
+  "archetype": "BANK_DOWNTIME",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High bank_failure_count and bank error source indicating gateway issue"
+ },
+ "e26a2b2d32348162": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.96,
+  "model": "openai/gpt-oss-120b",
+  "reason": "customer balance insufficient, emandate subscription, no bank-wide failures"
+ },
+ "e75e289206aca804": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "customer error, insufficient funds description, subscription mandate"
+ },
+ "ec6d99aa3f555050": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "customer\u2011source error, balance insufficient wording, emandate subscription"
+ },
+ "ee7cfc2637f5d49c": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.95,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Customer error, insufficient funds wording, repeat failures, low bank failure count"
+ },
+ "ee885916ce3a5537": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.9,
+  "model": "openai/gpt-oss-120b",
+  "reason": "customer error, insufficient funds wording, multiple recent failures, low bank failures"
+ },
+ "f14d068e5132ff70": {
+  "archetype": "MANDATE_REVOKED",
+  "confidence": 0.92,
+  "model": "openai/gpt-oss-120b",
+  "reason": "subscription emandate, multiple recent failures, customer error source"
+ },
+ "f176d52a159f7d31": {
+  "archetype": "3DS_ABANDON",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "authentication step timed out, no prior failures"
+ },
+ "f34e2e352412fcb0": {
+  "archetype": "EXPIRED_CARD",
+  "confidence": 0.97,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Error description states card expired; card method matches"
+ },
+ "f757b66a48604718": {
+  "archetype": "SUSPECTED_FRAUD",
+  "confidence": 0.78,
+  "model": "openai/gpt-oss-120b",
+  "reason": "Issuer risk decline, multiple recent failures, low bank-wide failures"
+ },
+ "f815cd7ebd4a9cd0": {
+  "archetype": "INSUFFICIENT_FUNDS",
+  "confidence": 0.7,
+  "model": "openai/gpt-oss-120b",
+  "reason": "High amount, no recent failures, low bank-wide failures suggests customer balance issue"
+ }
+}

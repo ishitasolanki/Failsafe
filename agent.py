@@ -267,12 +267,17 @@ def run_naive(payment, connection, run_id):
     return outcome
 
 
-def run_batch(payments, strategy, run_id, dry_run=True, db_path=DB_PATH):
+def run_batch(payments, strategy, run_id, dry_run=True, db_path=DB_PATH, cache=None):
     connection = connect(db_path)
     # Re-running the same run_id replaces it, so the audit trail never mixes two
     # runs of the same name.
     connection.execute("DELETE FROM event WHERE run_id = ?", (run_id,))
-    cache = diagnosis.load_cache()
+    # The caller may pass a cache so that one process shares a single set of
+    # diagnoses. Loading it twice meant the recovery run and the scoring pass
+    # each made their own LLM calls and disagreed about the same payment.
+    owns_cache = cache is None
+    if owns_cache:
+        cache = diagnosis.load_cache()
     client = razorpay_client.get_client()
     # ponytail: the contact ledger is keyed by customer and walked in payment
     # order, which works because payments are sorted by created_at. If payments
@@ -289,7 +294,7 @@ def run_batch(payments, strategy, run_id, dry_run=True, db_path=DB_PATH):
             )
     connection.commit()
     connection.close()
-    if strategy != "naive":
+    if strategy != "naive" and owns_cache:
         diagnosis.save_cache(cache)
     return outcomes
 

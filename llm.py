@@ -9,6 +9,7 @@ Set LLM_PROVIDER to force one; otherwise the first provider with a key wins.
 """
 
 import os
+import time
 
 import httpx
 from dotenv import load_dotenv
@@ -17,10 +18,19 @@ load_dotenv()
 
 TIMEOUT = 60
 
+# Free tiers rate-limit hard. Without backoff, 25 of 60 diagnoses silently fell
+# through to the keyword fallback and the reported "model accuracy" was really
+# the baseline wearing the model's name. Retried only where the request was not
+# processed (429) or the provider faulted (5xx); an LLM call has no side effect,
+# so retrying is always safe here.
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+MAX_RETRIES = 5
+BACKOFF_SECONDS = 1.5
+
 PROVIDERS = {
     # provider: (env var holding the key, default model)
     "anthropic": ("ANTHROPIC_API_KEY", "claude-haiku-4-5-20251001"),
-    "groq": ("GROQ_API_KEY", "llama-3.3-70b-versatile"),
+    "groq": ("GROQ_API_KEY", "openai/gpt-oss-120b"),
     "gemini": ("GOOGLE_API_KEY", "gemini-2.0-flash"),
 }
 
@@ -45,7 +55,36 @@ def model_name(provider=None):
     return os.getenv("LLM_MODEL") or PROVIDERS[provider][1]
 
 
-def complete(system: str, user: str, max_tokens: int = 400) -> str:
+def _send(request):
+    """Issue the request with bounded backoff, honouring Retry-After."""
+    last_error = None
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = request()
+        except httpx.TransportError as error:
+            last_error = error
+        else:
+            if response.status_code not in RETRY_STATUSES:
+                response.raise_for_status()
+                return response.json()
+            last_error = httpx.HTTPStatusError(
+                f"{response.status_code} from provider",
+                request=response.request,
+                response=response,
+            )
+            retry_after = response.headers.get("retry-after")
+            if retry_after:
+                try:
+                    time.sleep(min(float(retry_after), 30))
+                    continue
+                except ValueError:
+                    pass
+        if attempt < MAX_RETRIES - 1:
+            time.sleep(BACKOFF_SECONDS * (2 ** attempt))
+    raise last_error
+
+
+def complete(system: str, user: str, max_tokens: int = 1200) -> str:
     """Send one prompt, return the text. Raises if no provider is configured."""
     provider = active_provider()
     if provider is None:
@@ -57,27 +96,33 @@ def complete(system: str, user: str, max_tokens: int = 400) -> str:
     model = model_name(provider)
 
     if provider == "anthropic":
-        response = httpx.post(
-            "https://api.anthropic.com/v1/messages",
+        payload = dict(
+            url="https://api.anthropic.com/v1/messages",
             headers={"x-api-key": key, "anthropic-version": "2023-06-01"},
             json={
                 "model": model,
                 "max_tokens": max_tokens,
+                "temperature": 0,   # classification, not creativity
                 "system": system,
                 "messages": [{"role": "user", "content": user}],
             },
             timeout=TIMEOUT,
         )
-        response.raise_for_status()
-        return response.json()["content"][0]["text"]
+        return _send(lambda: httpx.post(**payload))["content"][0]["text"]
 
     if provider == "groq":
-        response = httpx.post(
-            "https://api.groq.com/openai/v1/chat/completions",
+        payload = dict(
+            url="https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {key}"},
             json={
                 "model": model,
                 "max_tokens": max_tokens,
+                "temperature": 0,   # classification, not creativity
+                # Groq's default models are reasoning models: their thinking is
+                # billed against max_tokens and, left unbounded, it consumes the
+                # entire budget and returns empty content. Classification needs
+                # a label, not a deliberation.
+                "reasoning_effort": "low",
                 "messages": [
                     {"role": "system", "content": system},
                     {"role": "user", "content": user},
@@ -85,21 +130,25 @@ def complete(system: str, user: str, max_tokens: int = 400) -> str:
             },
             timeout=TIMEOUT,
         )
-        response.raise_for_status()
-        return response.json()["choices"][0]["message"]["content"]
+        message = _send(lambda: httpx.post(**payload))["choices"][0]["message"]
+        # A reasoning model that ran out of budget leaves content empty and puts
+        # everything in `reasoning`. Fall back to it rather than silently
+        # returning nothing, which would look like a parse failure.
+        return message.get("content") or message.get("reasoning") or ""
 
     if provider == "gemini":
-        response = httpx.post(
-            f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        payload = dict(
+            url=f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
             params={"key": key},
             json={
                 "systemInstruction": {"parts": [{"text": system}]},
                 "contents": [{"parts": [{"text": user}]}],
-                "generationConfig": {"maxOutputTokens": max_tokens},
+                "generationConfig": {"maxOutputTokens": max_tokens,
+                                     "temperature": 0},
             },
             timeout=TIMEOUT,
         )
-        response.raise_for_status()
-        return response.json()["candidates"][0]["content"]["parts"][0]["text"]
+        result = _send(lambda: httpx.post(**payload))
+        return result["candidates"][0]["content"]["parts"][0]["text"]
 
     raise RuntimeError(f"Unknown LLM_PROVIDER: {provider!r}")
