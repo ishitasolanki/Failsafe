@@ -92,3 +92,48 @@ UnicodeEncodeError: 'charmap' codec can't encode character '₹'
 Windows terminals default to cp1252. Every CLI entry point now calls
 `sys.stdout.reconfigure(encoding="utf-8")`. Small, but it would have killed a
 live demo.
+
+## 6. Three calls failed the moment it hit the real API
+
+First live run against Razorpay test mode, 12 payments:
+
+```
+PAYMENT_LINK_UPI   link_created                    2
+RETRY_SCHEDULED    order_created                   7
+RETRY_SCHEDULED    provider_error:HTTPStatusError  3
+```
+
+The three failures were all first attempts fired in a burst, on unrelated
+amounts, and retrying one by hand succeeded immediately. Test mode rate-limits.
+
+Fixed with bounded backoff — but only on statuses where the request provably
+did not land: `429` and `5xx`, plus transport errors that never reached them. A
+`4xx` is a real rejection and is never retried. Retrying a request that *did*
+land is how you double-charge someone.
+
+## 7. The double-charge guard caught me first
+
+Re-ran the same batch after the backoff fix. The orders went through and the two
+payment links now failed:
+
+```
+payment link with given reference_id: failsafe_pay_FS0028_a1 already exists
+```
+
+My own idempotency key, refusing to create a second link for an attempt that had
+already happened. Working exactly as designed — and I had been about to call it
+a bug.
+
+The right handling is not to bypass it and not to report it as a failure.
+Re-running an attempt that already succeeded should return *the thing that
+already exists*. The client now catches the duplicate, fetches the existing link
+by `reference_id`, and returns it marked `_replayed`, which the audit trail
+records as `link_replayed` rather than `link_created` so the distinction stays
+visible.
+
+```
+link_replayed   2
+order_created  10
+```
+
+Zero errors, and the batch is genuinely safe to re-run against live test mode.

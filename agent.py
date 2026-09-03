@@ -118,7 +118,8 @@ def execute_action(client, payment, action, attempt, dry_run):
                 description=f"Recovery for payment {payment['id']}",
                 method=razorpay_client.METHOD_HINT.get(action),
             )
-            return "link_created", created.get("short_url") or created.get("id")
+            result = "link_replayed" if created.get("_replayed") else "link_created"
+            return result, created.get("short_url") or created.get("id")
         created = client.create_order(amount=payment["amount"], receipt=reference)
         return "order_created", created.get("id")
     except Exception as error:

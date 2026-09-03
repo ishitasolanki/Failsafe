@@ -17,6 +17,7 @@ This is the guard against double-charging a customer.
 """
 
 import os
+import time
 
 import httpx
 from dotenv import load_dotenv
@@ -25,6 +26,15 @@ load_dotenv()
 
 BASE_URL = "https://api.razorpay.com/v1"
 TIMEOUT = 30
+
+# Test mode rate-limits under a burst, which showed up as three failed calls in
+# the first live batch run. Retried only on statuses where the request provably
+# was NOT processed (429) or where the provider is at fault (5xx), plus network
+# errors that never reached them. A 4xx is a real rejection and is never
+# retried, because retrying a request that DID land is how you double-charge.
+RETRY_STATUSES = {429, 500, 502, 503, 504}
+MAX_RETRIES = 3
+BACKOFF_SECONDS = 0.6
 
 # Razorpay method hints, keyed by what the policy decided to do.
 METHOD_HINT = {"PAYMENT_LINK_UPI": "upi", "ASK_UPDATE_CARD": "card"}
@@ -68,9 +78,29 @@ class RazorpayClient:
         )
 
     def _post(self, path, payload):
-        response = self._client.post(path, json=payload)
-        response.raise_for_status()
-        return response.json()
+        return self._request("POST", path, json=payload)
+
+    def _request(self, method, path, **kwargs):
+        """Send with bounded backoff on rate limits and provider faults."""
+        last_error = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                response = self._client.request(method, path, **kwargs)
+            except httpx.TransportError as error:
+                # Never reached them, so re-sending cannot duplicate anything.
+                last_error = error
+            else:
+                if response.status_code not in RETRY_STATUSES:
+                    response.raise_for_status()
+                    return response.json()
+                last_error = httpx.HTTPStatusError(
+                    f"{response.status_code} from Razorpay",
+                    request=response.request,
+                    response=response,
+                )
+            if attempt < MAX_RETRIES - 1:
+                time.sleep(BACKOFF_SECONDS * (2 ** attempt))
+        raise last_error
 
     def create_payment_link(self, amount, reference_id, description, method=None):
         payload = {
@@ -84,7 +114,21 @@ class RazorpayClient:
         }
         if method:
             payload["options"] = {"checkout": {"method": {method: "1"}}}
-        return self._post("/payment_links", payload)
+        try:
+            return self._post("/payment_links", payload)
+        except httpx.HTTPStatusError as error:
+            # Razorpay rejects a reference_id it has already seen. That is the
+            # double-charge guard firing, not a failure: this exact attempt was
+            # already made. Return the link that exists instead of creating a
+            # second one, so a re-run is idempotent rather than expensive.
+            if error.response.status_code == 400 and "already exists" in error.response.text:
+                existing = self._request(
+                    "GET", "/payment_links", params={"reference_id": reference_id}
+                )
+                items = existing.get("payment_links") or []
+                if items:
+                    return {**items[0], "_replayed": True}
+            raise
 
     def create_order(self, amount, receipt):
         return self._post(
@@ -92,9 +136,7 @@ class RazorpayClient:
         )
 
     def fetch_payment_link(self, link_id):
-        response = self._client.get(f"/payment_links/{link_id}")
-        response.raise_for_status()
-        return response.json()
+        return self._request("GET", f"/payment_links/{link_id}")
 
 
 def get_client(force_mock=False):
