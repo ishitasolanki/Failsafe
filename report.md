@@ -1,6 +1,6 @@
 # Failsafe - evaluation report (heldout split)
 
-Diagnosis source: **live groq calls, cached for reproducibility**. Outcomes come from the pre-rolled world in `seed.py`; both strategies face the identical world, so the comparison is strategy alone.
+Diagnosis source: **committed cache (no API calls, fully reproducible)**. Outcomes come from the pre-rolled world in `seed.py`; both strategies face the identical world, so the comparison is strategy alone.
 
 ## Headline
 
