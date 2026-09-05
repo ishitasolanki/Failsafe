@@ -9,6 +9,8 @@ not by what it attempts.
 
 ---
 
+![Failsafe dashboard](docs/dashboard.png)
+
 ## The problem
 
 When a payment fails on Razorpay, the merchant loses the sale silently. Nobody
@@ -174,11 +176,17 @@ See one payment's full decision chain:
 python agent.py --split heldout --limit 5 --run-id demo
 ```
 
-Browse the audit trail in a dashboard:
+Browse the audit trail in the dashboard:
 
 ```bash
 uvicorn app:app --reload
 ```
+
+![Audit trail](docs/audit-trail.png)
+
+Five tabs: the headline numbers, recovery per cause against the baseline, the
+model measured against a keyword lookup, the full audit trail, and the
+architecture. Every payment's decision chain is one click away.
 
 ### Running it for real
 
