@@ -4,5 +4,12 @@ __pycache__/
 *.pyc
 .pytest_cache/
 .venv/
-demo-walkthrough.webm
 .playwright-cli/
+
+# generated media — rebuild with demo/make_voice.ps1 then demo/record.js
+*.webm
+*.mp4
+demo/audio/*.wav
+demo/audio/manifest.json
+demo/marks.json
+demo/_record_built.js

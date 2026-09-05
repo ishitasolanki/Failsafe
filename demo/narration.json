@@ -1,0 +1,112 @@
+[
+  {
+    "id": "01_hook",
+    "scene": "slide-title",
+    "text": "When a payment fails on Razorpay, the merchant loses the sale and nobody tells them."
+  },
+  {
+    "id": "02_problem",
+    "scene": "slide-problem",
+    "text": "Most merchants do nothing, or retry everything tomorrow. Both are wrong. Payments don't fail for one reason. They fail for six, and each needs a different response, at a different time."
+  },
+  {
+    "id": "03_stakes",
+    "scene": "slide-stakes",
+    "text": "No money in the account? Retry on the first, when salary lands. Expired card? Retrying fails forever. Revoked mandate? That's not useless, it's a compliance violation. Some payments must never be retried. So I built Failsafe."
+  },
+  {
+    "id": "05_hero",
+    "scene": "hero",
+    "text": "It diagnoses why each payment failed, picks a bounded recovery action, and stops when stopping is the right answer."
+  },
+  {
+    "id": "06_numbers",
+    "scene": "tiles",
+    "text": "Sixty held-out payments I never looked at while building, against a naive retry baseline. Thirty five recovered against ten. Four point seven lakh recovered against one point five. And in fewer actions: one hundred and two against one sixty three."
+  },
+  {
+    "id": "07_violations",
+    "scene": "tiles",
+    "text": "But this is the number I care about. Zero compliance violations. The baseline commits twenty one."
+  },
+  {
+    "id": "08_causes",
+    "scene": "causes",
+    "text": "Six causes, six different correct answers. The two in red are where the right move is to do nothing at all."
+  },
+  {
+    "id": "09_cost",
+    "scene": "cost",
+    "text": "And I report the cost. Fifteen wasted actions, spent on payments nothing could save. That sits next to the win, not underneath it."
+  },
+  {
+    "id": "10_recovery",
+    "scene": "recovery",
+    "text": "Recovery per cause, against the baseline, over an identical pre-rolled world. Every outcome was decided before either strategy ran, so neither can get lucky."
+  },
+  {
+    "id": "11_terminal",
+    "scene": "recovery-scrolled",
+    "text": "Mandate revoked and suspected fraud recover zero percent by design. Those aren't failures. Stopping is correct."
+  },
+  {
+    "id": "12_diagnosis",
+    "scene": "diagnosis",
+    "text": "The model has one job: name the cause. So I measured whether it beats a keyword lookup."
+  },
+  {
+    "id": "13_generic",
+    "scene": "diagnosis",
+    "text": "Eighty percent against seventy five. But look at the second row. Where the error says only, payment failed, please try again, the lookup gets sixteen point seven percent. The model gets thirty three, because it reads context. Still only a third, and I'd rather say that than round it up."
+  },
+  {
+    "id": "14_audit",
+    "scene": "audit",
+    "text": "Every money action is explainable. This payment failed on the thirteenth of August. Insufficient funds."
+  },
+  {
+    "id": "15_wait",
+    "scene": "audit-chain",
+    "text": "Watch the timestamps. The salary cycle rule fires, and the agent waits nineteen days for September first. Two attempts fail. The third captures six thousand rupees. A blind retry loop would have burned all three in August, against an empty account."
+  },
+  {
+    "id": "16_refusal",
+    "scene": "audit-revoked",
+    "text": "The opposite case. Mandate revoked. Diagnosed, terminal rule fires, escalated to a human. One step. No retry, ever."
+  },
+  {
+    "id": "17_design",
+    "scene": "how",
+    "text": "Here's the decision the project rests on. The model classifies. It never chooses the money action."
+  },
+  {
+    "id": "18_gates",
+    "scene": "how-gates",
+    "text": "It picks one of six causes. A fixed table maps that to an action, and every action clears seven deterministic gates. Three attempts maximum. No messaging after nine at night. Over fifty thousand rupees waits for a human. So a misdiagnosis costs a wasted retry. It can never cost a breach or a double charge."
+  },
+  {
+    "id": "20_broke1",
+    "scene": "broke",
+    "text": "I learned that the hard way. My first run showed nine compliance violations, even though the policy refuses to retry revoked mandates. The policy was fine. A fraud case misdiagnosed as insufficient funds arrives already wearing the wrong label, so the terminal check had nothing to fire on."
+  },
+  {
+    "id": "21_broke1fix",
+    "scene": "broke",
+    "text": "Safety couldn't sit downstream of the model. Two guards now ignore the diagnosis entirely. A burst of failures stops a payment whatever was diagnosed, and a recurring payment has its mandate looked up rather than guessed. Nine, to zero."
+  },
+  {
+    "id": "22_broke2",
+    "scene": "broke2",
+    "text": "One more. My agent once recovered less money than the dumb baseline, because I'd built the approval gate as a terminal stop, so large payments were escalated and then abandoned. I only caught it because the report prints the baseline next to my own number."
+  },
+  {
+    "id": "24_limitation",
+    "scene": "limits",
+    "text": "And plainly: the payments are synthetic, so the rupee figure isn't real. But both strategies face the same world, so the comparison is fair, and the safety results don't depend on the simulation at all."
+  },
+  {
+    "id": "25_close",
+    "scene": "close",
+    "text": "Everything reproduces with zero API keys. Twenty four tests cover the stopping rules. Thanks for watching."
+  }
+]
