@@ -3,197 +3,432 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Failsafe — recovery audit</title>
+<title>Failsafe — payment recovery that knows when to stop</title>
 <style>
   :root {
     color-scheme: dark;
-    --surface-0: #121211;
-    --surface-1: #1a1a19;
+    --bg:        #0c0c0b;
+    --bg-2:      #131312;
+    --surface:   #1a1a19;
     --surface-2: #222221;
-    --line:      #33332f;
-    --line-soft: #2a2a27;
-    --ink:       #ffffff;
-    --ink-2:     #c3c2b7;
-    --ink-3:     #8b8a80;
-    /* Categorical slots 1 and 2, dark steps. Validated: CVD ΔE 26.8, normal 31.8. */
-    --series-failsafe: #3987e5;
-    --series-naive:    #d95926;
-    --good:     #0ca30c;
-    --warning:  #fab219;
-    --critical: #d03b3b;
+    --line:      #2e2e2b;
+    --line-soft: #262624;
+    --cream:     #f2ece1;
+    --ink:       #f2ece1;
+    --ink-2:     #b9b4a9;
+    --ink-3:     #85817a;
+    /* Categorical slots 1 & 2, dark steps. Validated: CVD ΔE 26.8, normal 31.8 */
+    --series-1:  #3987e5;
+    --series-2:  #d95926;
+    --good:      #0ca30c;
+    --warning:   #fab219;
+    --critical:  #d03b3b;
+    --radius:    12px;
   }
   * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--surface-0); color: var(--ink);
-    font: 14px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    * { animation: none !important; transition: none !important; }
   }
-  .wrap { max-width: 1500px; margin: 0 auto; padding: 0 24px 60px; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.6 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 0 28px; }
+  a { color: inherit; }
 
-  header { padding: 26px 0 18px; }
-  h1 { margin: 0; font-size: 20px; letter-spacing: -.2px; font-weight: 650; }
-  h1 span { color: var(--ink-3); font-weight: 400; }
-  .sub { color: var(--ink-3); margin-top: 5px; font-size: 13px; }
+  /* ---------- top bar ---------- */
+  .topbar {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(12,12,11,.82); backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .topbar .wrap { display: flex; align-items: center; gap: 28px; height: 62px; }
+  .brand { font-weight: 680; letter-spacing: -.3px; font-size: 16px; white-space: nowrap; }
+  .brand em { font-style: normal; color: var(--ink-3); font-weight: 400; }
 
-  h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .8px;
-       color: var(--ink-3); margin: 0 0 4px; font-weight: 600; }
-  .note { color: var(--ink-3); font-size: 12.5px; margin: 0 0 14px; max-width: 62ch; }
+  [role="tablist"] { display: flex; gap: 2px; margin-left: auto; overflow-x: auto;
+                     scrollbar-width: none; }
+  [role="tablist"]::-webkit-scrollbar { display: none; }
+  [role="tab"] {
+    appearance: none; background: none; border: 0; color: var(--ink-3);
+    font: inherit; font-size: 13.5px; padding: 8px 14px; border-radius: 8px;
+    cursor: pointer; white-space: nowrap; transition: color .15s, background .15s;
+  }
+  [role="tab"]:hover { color: var(--ink-2); background: var(--surface); }
+  [role="tab"][aria-selected="true"] { color: var(--bg); background: var(--cream);
+                                       font-weight: 600; }
+  :focus-visible { outline: 2px solid var(--series-1); outline-offset: 2px; }
 
-  /* ---- stat tiles ---- */
-  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-           gap: 12px; margin-bottom: 26px; }
-  .tile { background: var(--surface-1); border: 1px solid var(--line);
-          border-radius: 10px; padding: 14px 16px; }
+  /* On a phone the brand and five tabs cannot share one row: the tablist
+     scrolled off with nothing to say more tabs existed. Drop the suffix and
+     give the tabs their own full-width row. */
+  @media (max-width: 700px) {
+    .topbar .wrap { flex-direction: column; height: auto; gap: 0;
+                    align-items: stretch; padding-top: 12px; }
+    .brand { padding-bottom: 10px; }
+    .brand em { display: none; }
+    [role="tablist"] { margin-left: 0; padding-bottom: 8px; gap: 4px; }
+    [role="tab"] { padding: 8px 12px; }
+    .hero { padding: 44px 0 40px; }
+  }
+
+  /* ---------- hero ---------- */
+  .hero { padding: 84px 0 60px; border-bottom: 1px solid var(--line); }
+  .eyebrow { color: var(--ink-3); font-size: 12.5px; letter-spacing: 1.4px;
+             text-transform: uppercase; font-weight: 600; margin-bottom: 22px; }
+  h1 { font-size: clamp(38px, 6.4vw, 78px); line-height: .98; letter-spacing: -2.4px;
+       font-weight: 660; margin: 0 0 26px; max-width: 16ch; }
+  h1 .muted { color: var(--ink-3); }
+  .lede { font-size: clamp(16px, 1.7vw, 19px); color: var(--ink-2); max-width: 58ch;
+          margin: 0 0 34px; }
+  .lede strong { color: var(--ink); font-weight: 600; }
+  .meta { display: flex; flex-wrap: wrap; gap: 10px 26px; color: var(--ink-3);
+          font-size: 13.5px; }
+  .meta span::before { content: "/ "; color: var(--line); }
+
+  /* ---------- sections ---------- */
+  section[role="tabpanel"] { padding: 46px 0 90px; }
+  section[hidden] { display: none; }
+  h2 { font-size: clamp(24px, 2.6vw, 32px); letter-spacing: -.8px; font-weight: 640;
+       margin: 0 0 10px; }
+  .section-note { color: var(--ink-2); max-width: 66ch; margin: 0 0 32px; font-size: 15px; }
+  h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .9px;
+       color: var(--ink-3); margin: 0 0 6px; font-weight: 650; }
+  .note { color: var(--ink-3); font-size: 13px; margin: 0 0 18px; max-width: 60ch; }
+  .rule { border: 0; border-top: 1px solid var(--line); margin: 52px 0 40px; }
+
+  /* ---------- tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+           gap: 14px; }
+  .tile { background: var(--surface); border: 1px solid var(--line);
+          border-radius: var(--radius); padding: 18px 20px; }
   .tile .k { color: var(--ink-3); font-size: 11px; text-transform: uppercase;
-             letter-spacing: .7px; font-weight: 600; }
-  .tile .v { font-size: 27px; font-weight: 660; margin: 4px 0 2px;
-             font-variant-numeric: tabular-nums; letter-spacing: -.5px; }
-  .tile .d { font-size: 12px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+             letter-spacing: .8px; font-weight: 650; }
+  .tile .v { font-size: clamp(28px, 3.4vw, 38px); font-weight: 660; margin: 6px 0 4px;
+             font-variant-numeric: tabular-nums; letter-spacing: -1.2px; line-height: 1; }
+  .tile .d { font-size: 12.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
   .tile .d b { color: var(--ink-3); font-weight: 400; }
-  .up   { color: var(--good); }
-  .down { color: var(--good); }
+  .win { color: var(--good); font-weight: 600; }
 
-  /* ---- panels ---- */
-  .panels { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
-  @media (max-width: 1080px) { .panels { grid-template-columns: 1fr; } }
-  .panel { background: var(--surface-1); border: 1px solid var(--line);
-           border-radius: 10px; padding: 16px 18px 18px; }
-
-  /* ---- charts ---- */
-  .legend { display: flex; gap: 16px; margin: 2px 0 14px; font-size: 12px;
+  /* ---------- panels & charts ---------- */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 940px) { .grid-2 { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--line);
+           border-radius: var(--radius); padding: 20px 22px 24px; }
+  .legend { display: flex; gap: 18px; margin: 0 0 18px; font-size: 12.5px;
             color: var(--ink-2); }
   .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px;
-            margin-right: 6px; vertical-align: -1px; }
-  .barrow { margin-bottom: 13px; }
-  .barlabel { display: flex; justify-content: space-between; font-size: 12px;
-              margin-bottom: 5px; gap: 10px; }
+            margin-right: 7px; vertical-align: -1px; }
+  .barrow { margin-bottom: 15px; }
+  .barlabel { display: flex; justify-content: space-between; gap: 12px;
+              font-size: 12.5px; margin-bottom: 6px; }
   .barlabel .name { color: var(--ink-2); }
   .barlabel .val { color: var(--ink-3); font-variant-numeric: tabular-nums;
                    white-space: nowrap; }
-  .track { position: relative; height: 9px; }
+  .track { height: 10px; }
   .track + .track { margin-top: 2px; }   /* 2px surface gap between fills */
-  .bar { height: 9px; border-radius: 0 4px 4px 0; }
-  .terminal-tag { color: var(--warning); font-size: 11px; }
+  .bar { height: 10px; border-radius: 0 4px 4px 0; }
+  .tag { color: var(--warning); font-size: 11px; }
 
-  table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-  th { text-align: left; font-weight: 600; color: var(--ink-3); font-size: 11px;
-       text-transform: uppercase; letter-spacing: .6px; padding: 0 0 8px; }
-  td { padding: 7px 0; border-top: 1px solid var(--line-soft); color: var(--ink-2); }
-  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  table { width: 100%; border-collapse: collapse; font-size: 13.5px; }
+  th { text-align: left; font-weight: 650; color: var(--ink-3); font-size: 11px;
+       text-transform: uppercase; letter-spacing: .7px; padding: 0 0 10px; }
+  td { padding: 9px 0; border-top: 1px solid var(--line-soft); color: var(--ink-2);
+       vertical-align: top; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums;
+                   white-space: nowrap; }
+  td strong { color: var(--ink); font-weight: 600; }
+  .bad { color: var(--critical); } .ok { color: var(--good); }
 
-  /* ---- payment browser ---- */
-  .browser { display: grid; grid-template-columns: minmax(300px, 400px) 1fr;
-             background: var(--surface-1); border: 1px solid var(--line);
-             border-radius: 10px; overflow: hidden; }
-  @media (max-width: 1080px) { .browser { grid-template-columns: 1fr; } }
-  .list { border-right: 1px solid var(--line); max-height: 620px; overflow-y: auto; }
-  .row { padding: 9px 16px; border-bottom: 1px solid var(--line-soft); cursor: pointer;
-         display: flex; gap: 9px; align-items: baseline; }
+  /* ---------- audit browser ---------- */
+  .browser { display: grid; grid-template-columns: minmax(290px, 380px) 1fr;
+             background: var(--surface); border: 1px solid var(--line);
+             border-radius: var(--radius); overflow: hidden; }
+  @media (max-width: 940px) { .browser { grid-template-columns: 1fr; } }
+  .list { border-right: 1px solid var(--line); max-height: 640px; overflow-y: auto; }
+  .row { padding: 10px 18px; border-bottom: 1px solid var(--line-soft); cursor: pointer;
+         display: flex; gap: 10px; align-items: baseline; width: 100%;
+         background: none; border-left: 0; border-right: 0; border-top: 0;
+         font: inherit; text-align: left; color: inherit; }
   .row:hover { background: var(--surface-2); }
-  .row.sel { background: #1c2635; box-shadow: inset 3px 0 0 var(--series-failsafe); }
+  .row[aria-current="true"] { background: #1b2634;
+                              box-shadow: inset 3px 0 0 var(--series-1); }
   .row .id { font-family: ui-monospace, Menlo, monospace; font-size: 11.5px;
              color: var(--ink-3); }
   .row .arch { flex: 1; font-size: 12.5px; }
   .row .amt { font-variant-numeric: tabular-nums; font-size: 12px; color: var(--ink-2); }
   .dot { width: 7px; height: 7px; border-radius: 50%; flex: none; }
-  .dot.ok { background: var(--good); } .dot.no { background: var(--critical); }
+  .dot.y { background: var(--good); } .dot.n { background: var(--critical); }
   .flag { color: var(--warning); font-size: 11px; }
-
-  .detail { padding: 18px 22px; max-height: 620px; overflow-y: auto; }
-  .facts { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 12px;
-           color: var(--ink-3); margin: 6px 0 16px; padding-bottom: 14px;
+  .detail { padding: 22px 24px; max-height: 640px; overflow-y: auto; }
+  .facts { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 12.5px;
+           color: var(--ink-3); margin: 8px 0 18px; padding-bottom: 16px;
            border-bottom: 1px solid var(--line-soft); }
   .facts b { color: var(--ink-2); font-weight: 500; }
-  .quote { color: var(--ink-2); font-size: 12.5px; font-style: italic;
-           margin: 4px 0 0; }
-  .step { border-left: 2px solid var(--line); padding: 0 0 15px 16px;
+  .quote { color: var(--ink-2); font-size: 13px; font-style: italic; margin-top: 4px; }
+  .step { border-left: 2px solid var(--line); padding: 0 0 16px 18px;
           position: relative; }
   .step:last-child { padding-bottom: 0; }
-  .step::before { content: ""; position: absolute; left: -5px; top: 5px;
-                  width: 8px; height: 8px; border-radius: 50%;
-                  background: var(--series-failsafe); }
+  .step::before { content: ""; position: absolute; left: -5px; top: 6px; width: 8px;
+                  height: 8px; border-radius: 50%; background: var(--series-1); }
   .step.act::before  { background: var(--warning); }
   .step.stop::before { background: var(--critical); }
-  .step.ok::before   { background: var(--good); }
-  .stage { font-size: 10.5px; text-transform: uppercase; letter-spacing: .8px;
-           color: var(--ink-3); font-weight: 600; }
-  .step .main { margin-top: 2px; font-size: 13px; }
-  code { background: var(--surface-0); border: 1px solid var(--line);
-         border-radius: 4px; padding: 1px 5px; font-size: 11.5px;
-         font-family: ui-monospace, Menlo, monospace; }
+  .step.good::before { background: var(--good); }
+  .stage { font-size: 10.5px; text-transform: uppercase; letter-spacing: .9px;
+           color: var(--ink-3); font-weight: 650; }
+  .step .main { margin-top: 3px; font-size: 13.5px; }
+  code { background: var(--bg); border: 1px solid var(--line); border-radius: 5px;
+         padding: 1.5px 6px; font-size: 12px;
+         font-family: ui-monospace, Menlo, monospace; color: var(--ink-2); }
   .ts { color: var(--ink-3); font-size: 11px; font-variant-numeric: tabular-nums; }
-  .banner { padding: 12px 16px; border-radius: 8px; background: #2a1f14;
-            border: 1px solid #4a3418; color: #e8c98a; font-size: 13px;
-            margin-bottom: 16px; }
+
+  /* ---------- architecture ---------- */
+  .flow { display: grid; gap: 12px; max-width: 640px; }
+  .node { background: var(--surface); border: 1px solid var(--line);
+          border-radius: 10px; padding: 14px 18px; }
+  .node .t { font-weight: 620; font-size: 14.5px; }
+  .node .s { color: var(--ink-3); font-size: 12.5px; margin-top: 3px; }
+  .node.llm  { border-color: #2c4a72; }
+  .node.rules{ border-color: #5a4a1e; }
+  .arrow { color: var(--ink-3); font-size: 18px; line-height: 1; padding-left: 22px; }
+  .gates { display: grid; gap: 6px; margin: 6px 0 0 22px; padding-left: 18px;
+           border-left: 2px solid var(--line); }
+  .gate { font-size: 13px; color: var(--ink-2); }
+  .gate b { color: var(--ink); font-weight: 600; }
+
+  pre { background: var(--bg-2); border: 1px solid var(--line); border-radius: 10px;
+        padding: 16px 18px; overflow-x: auto; font-size: 12.5px; line-height: 1.7;
+        font-family: ui-monospace, Menlo, monospace; color: var(--ink-2); }
+  .banner { padding: 14px 18px; border-radius: 10px; background: #2a1f14;
+            border: 1px solid #4a3418; color: #e8c98a; font-size: 13.5px;
+            margin-bottom: 20px; }
+  footer { border-top: 1px solid var(--line); padding: 30px 0 50px;
+           color: var(--ink-3); font-size: 13px; }
 </style>
 </head>
 <body>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand">Failsafe <em>/ razorpay buildathon</em></div>
+    <div role="tablist" aria-label="Sections">
+      <button role="tab" id="tab-overview"  aria-controls="panel-overview"  aria-selected="true">Overview</button>
+      <button role="tab" id="tab-recovery"  aria-controls="panel-recovery"  aria-selected="false" tabindex="-1">Recovery</button>
+      <button role="tab" id="tab-diagnosis" aria-controls="panel-diagnosis" aria-selected="false" tabindex="-1">Diagnosis</button>
+      <button role="tab" id="tab-audit"     aria-controls="panel-audit"     aria-selected="false" tabindex="-1">Audit trail</button>
+      <button role="tab" id="tab-how"       aria-controls="panel-how"       aria-selected="false" tabindex="-1">How it works</button>
+    </div>
+  </div>
+</div>
+
+<div class="hero" id="hero">
+  <div class="wrap">
+    <div class="eyebrow">Track 03 · AI Revenue Recovery</div>
+    <h1>It knows when <span class="muted">not</span> to retry.</h1>
+    <p class="lede">When a payment fails on Razorpay, the merchant loses the sale
+      silently. Failsafe diagnoses <em>why</em> it failed, picks a bounded recovery
+      action, and <strong>stops when stopping is the right answer</strong> — because
+      retrying a revoked mandate is a compliance breach, not a second chance.</p>
+    <div class="meta">
+      <span>60 held-out payments</span>
+      <span>measured against a naive-retry baseline</span>
+      <span>reproducible with zero API keys</span>
+    </div>
+  </div>
+</div>
+
 <div class="wrap">
+  <div id="err"></div>
 
-<header>
-  <h1>Failsafe <span>— every money action, explained</span></h1>
-  <div class="sub" id="sub">loading…</div>
-</header>
+  <!-- ============ OVERVIEW ============ -->
+  <section role="tabpanel" id="panel-overview" aria-labelledby="tab-overview">
+    <div class="tiles" id="tiles"></div>
 
-<div id="err"></div>
-<div class="tiles" id="tiles"></div>
-
-<div class="panels">
-  <div class="panel">
-    <h2>Recovery by true cause</h2>
-    <p class="note">Payments recovered out of those that failed for each reason.
-      The two bottom rows recover nothing <em>by design</em> — stopping is the
-      correct answer there.</p>
-    <div class="legend">
-      <span><span class="swatch" style="background:var(--series-failsafe)"></span>Failsafe</span>
-      <span><span class="swatch" style="background:var(--series-naive)"></span>Naive retry</span>
+    <hr class="rule">
+    <h2>The problem is not that payments fail. It is that each one fails differently.</h2>
+    <p class="section-note">Merchants today run one blanket "retry tomorrow", or nothing
+      at all. But the right move depends entirely on the cause — and for two of these
+      six, the right move is to do nothing.</p>
+    <div class="panel">
+      <table>
+        <tr><th>The failure</th><th>What actually helps</th><th>What a blind retry does</th></tr>
+        <tr><td><strong>Insufficient funds</strong></td><td>Retry on the 1st, when salary lands</td><td>Burns an attempt on an empty account</td></tr>
+        <tr><td><strong>Bank downtime</strong></td><td>Retry in ~45 minutes</td><td>Fails again, bank is still down</td></tr>
+        <tr><td><strong>Expired card</strong></td><td>Ask the customer to update it</td><td>Fails 100% of the time, forever</td></tr>
+        <tr><td><strong>3DS abandoned</strong></td><td>Send a UPI link instead</td><td>Returns them to the screen they left</td></tr>
+        <tr><td><strong>Mandate revoked</strong></td><td>Stop. Request re-authorisation.</td><td><span class="bad">Compliance violation</span></td></tr>
+        <tr><td><strong>Suspected fraud</strong></td><td>Stop. Human queue.</td><td><span class="bad">Invites a chargeback</span></td></tr>
+      </table>
     </div>
-    <div id="archetypes"></div>
-  </div>
 
-  <div class="panel">
-    <h2>Where the unrecovered money went</h2>
-    <p class="note">Every payment Failsafe did not recover, grouped by why it
-      stopped. Nothing filtered.</p>
-    <div id="exceptions"></div>
-  </div>
-</div>
-
-<div class="panels">
-  <div class="panel">
-    <h2>Does the model earn its place?</h2>
-    <p class="note" id="diagnote"></p>
-    <div class="legend">
-      <span><span class="swatch" style="background:var(--series-failsafe)"></span>Model</span>
-      <span><span class="swatch" style="background:var(--series-naive)"></span>Keyword lookup</span>
-    </div>
-    <div id="diagnosis"></div>
-  </div>
-
-  <div class="panel">
+    <hr class="rule">
     <h2>Cost of every action</h2>
-    <p class="note">A metric without its cost is marketing. These are the numbers
-      that do not flatter the agent.</p>
-    <table id="costs"></table>
-  </div>
+    <p class="section-note">A metric without its cost is marketing. These are the numbers
+      that do not flatter the agent, reported next to the ones that do.</p>
+    <div class="panel"><table id="costs"></table></div>
+  </section>
+
+  <!-- ============ RECOVERY ============ -->
+  <section role="tabpanel" id="panel-recovery" aria-labelledby="tab-recovery" hidden>
+    <h2>Recovery by true cause</h2>
+    <p class="section-note">Both strategies run over the <em>identical pre-rolled world</em>
+      — every action's outcome was decided before either ran, so neither can get lucky.
+      The only difference between the two bars is strategy.</p>
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Payments recovered</h3>
+        <p class="note">The bottom two rows recover nothing <em>by design</em>.
+          Stopping is the correct answer there, not a failure.</p>
+        <div class="legend">
+          <span><span class="swatch" style="background:var(--series-1)"></span>Failsafe</span>
+          <span><span class="swatch" style="background:var(--series-2)"></span>Naive retry</span>
+        </div>
+        <div id="archetypes"></div>
+      </div>
+      <div class="panel">
+        <h3>Where the unrecovered money went</h3>
+        <p class="note">Every payment Failsafe did not recover, grouped by why it
+          stopped. Nothing filtered, nothing hidden.</p>
+        <div id="exceptions"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DIAGNOSIS ============ -->
+  <section role="tabpanel" id="panel-diagnosis" aria-labelledby="tab-diagnosis" hidden>
+    <h2>Does the model earn its place?</h2>
+    <p class="section-note">The LLM has exactly one job: name the cause. It never chooses
+      the money action. So the fair question is whether it beats a keyword lookup over
+      the error string — measured, not assumed.</p>
+    <div class="grid-2">
+      <div class="panel">
+        <h3>Accuracy against a keyword lookup</h3>
+        <p class="note" id="diagnote"></p>
+        <div class="legend">
+          <span><span class="swatch" style="background:var(--series-1)"></span>Model</span>
+          <span><span class="swatch" style="background:var(--series-2)"></span>Keyword lookup</span>
+        </div>
+        <div id="diagnosis"></div>
+      </div>
+      <div class="panel">
+        <h3>Every misdiagnosis</h3>
+        <p class="note">The model is wrong on some payments. Listed rather than
+          summarised, because the policy layer is built on the assumption that this
+          number will never be zero.</p>
+        <table id="misdiagnoses"></table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ AUDIT ============ -->
+  <section role="tabpanel" id="panel-audit" aria-labelledby="tab-audit" hidden>
+    <h2>Every money action, explained</h2>
+    <p class="section-note">Click any payment for its full decision chain: what was
+      diagnosed and why, which rule fired, what was done, and the reason it stopped.
+      Sorted by amount.</p>
+    <div class="browser">
+      <div class="list" id="list"></div>
+      <div class="detail" id="detail"></div>
+    </div>
+  </section>
+
+  <!-- ============ HOW ============ -->
+  <section role="tabpanel" id="panel-how" aria-labelledby="tab-how" hidden>
+    <h2>The LLM classifies. It never touches money.</h2>
+    <p class="section-note">A misdiagnosis costs a wasted retry. It cannot cost a
+      compliance breach, a double charge, or a 3am message to a customer — because
+      every one of those is bounded by rules the model never reaches.</p>
+
+    <div class="grid-2">
+      <div>
+        <div class="flow">
+          <div class="node"><div class="t">Failed payment</div>
+            <div class="s">from Razorpay, normalised</div></div>
+          <div class="arrow">↓</div>
+          <div class="node llm"><div class="t">Diagnose — the LLM</div>
+            <div class="s">Names one of six causes from the error, the bank, the amount,
+              how many others failed at that bank in the last hour, the customer's
+              history. Off-menu answer → fails closed to a human.</div></div>
+          <div class="arrow">↓</div>
+          <div class="node rules"><div class="t">Decide — deterministic policy</div>
+            <div class="s">First rule that matches wins. No model output reaches a money
+              action without passing every gate below.</div>
+            <div class="gates">
+              <div class="gate"><b>Terminal cause?</b> → stop, human queue</div>
+              <div class="gate"><b>8+ recent failures?</b> → stop, whatever was diagnosed</div>
+              <div class="gate"><b>Recurring payment?</b> → verify the mandate, don't guess</div>
+              <div class="gate"><b>3 attempts used?</b> → stop</div>
+              <div class="gate"><b>Over ₹50,000?</b> → hold for human approval</div>
+              <div class="gate"><b>Contacted in 24h?</b> → defer</div>
+              <div class="gate"><b>21:00–09:00 IST?</b> → defer (silent retries exempt)</div>
+            </div></div>
+          <div class="arrow">↓</div>
+          <div class="node"><div class="t">Act — Razorpay test mode</div>
+            <div class="s">Idempotency key = payment + attempt, so a crash-and-retry
+              cannot double-charge. A duplicate returns the existing link.</div></div>
+          <div class="arrow">↓</div>
+          <div class="node"><div class="t">Observe</div>
+            <div class="s">Recovered only when the provider says <code>captured</code>.
+              Never self-reported.</div></div>
+          <div class="arrow">↓</div>
+          <div class="node"><div class="t">Audit trail</div>
+            <div class="s">Append-only. Every step, every rule that fired.</div></div>
+        </div>
+      </div>
+
+      <div>
+        <div class="panel" style="margin-bottom:16px">
+          <h3>Safety does not sit downstream of the model</h3>
+          <p class="note" style="margin:0">This was learned the hard way. An early run
+            showed <strong style="color:var(--ink)">9 compliance violations</strong> even
+            though the policy refuses to retry revoked mandates — because a fraud case
+            misdiagnosed as insufficient funds arrives already wearing the wrong label.
+            Two guards now run without consulting the diagnosis at all: an abnormal
+            failure burst stops a payment outright, and a recurring payment has its
+            mandate <em>looked up</em> rather than guessed. Violations went 9 → 0.</p>
+        </div>
+        <div class="panel" style="margin-bottom:16px">
+          <h3>What is real and what is simulated</h3>
+          <table>
+            <tr><td>Payment links & orders</td><td class="num ok">real test-mode API</td></tr>
+            <tr><td>Failure diagnosis</td><td class="num ok">real LLM calls, cached</td></tr>
+            <tr><td>Policy, stopping rules, audit</td><td class="num ok">real code</td></tr>
+            <tr><td>The failed payments</td><td class="num">synthetic</td></tr>
+            <tr><td>Whether a customer then pays</td><td class="num">simulated</td></tr>
+          </table>
+          <p class="note" style="margin:14px 0 0">Test mode cannot make a customer pay,
+            so outcomes come from a pre-rolled world whose assumptions sit in one
+            readable table at the top of <code>seed.py</code>. Customer messages are
+            generated and rendered, <strong style="color:var(--ink)">never sent</strong>.</p>
+        </div>
+        <div class="panel">
+          <h3>Run it yourself</h3>
+          <pre>pip install -r requirements.txt
+python seed.py
+python -m pytest test_policy.py -q
+python evaluate.py --split heldout</pre>
+          <p class="note" style="margin:14px 0 0">No API keys needed. All 60 diagnoses
+            come from the committed cache, verified byte-identical with the environment
+            stripped.</p>
+        </div>
+      </div>
+    </div>
+  </section>
 </div>
 
-<div style="margin: 26px 0 12px">
-  <h2>Audit trail — click any payment</h2>
-  <p class="note">The full decision chain for every payment: what was diagnosed,
-    which rule fired, what was done, and why it stopped. Sorted by amount.</p>
-</div>
-
-<div class="browser">
-  <div class="list" id="list"></div>
-  <div class="detail" id="detail"></div>
-</div>
-
-</div>
+<footer><div class="wrap">
+  Failsafe · Razorpay AI Buildathon, Track 03 · every number on this page is
+  regenerated by <code>python evaluate.py --split heldout</code>
+</div></footer>
 
 <script>
 const rs = p => "₹" + (p / 100).toLocaleString("en-IN", {maximumFractionDigits: 0});
 const pct = x => (x * 100).toFixed(1) + "%";
-let selected = null;
+const $ = id => document.getElementById(id);
+let selectedRow = null;
 
 async function get(url) {
   const r = await fetch(url);
@@ -201,132 +436,148 @@ async function get(url) {
   return r.json();
 }
 
-function tile(label, value, detail) {
-  return `<div class="tile"><div class="k">${label}</div>
-    <div class="v">${value}</div><div class="d">${detail}</div></div>`;
+/* ---------------- tabs: roving focus + arrow keys + hash deep-link -------- */
+const tabs = [...document.querySelectorAll('[role="tab"]')];
+function selectTab(tab, focus = false) {
+  tabs.forEach(t => {
+    const on = t === tab;
+    t.setAttribute("aria-selected", on);
+    t.tabIndex = on ? 0 : -1;
+    $(t.getAttribute("aria-controls")).hidden = !on;
+  });
+  // The hero is the pitch, not a header. It belongs on the landing tab only —
+  // repeating it above every panel costs a screenful of scrolling each time.
+  $("hero").hidden = tab.id !== "tab-overview";
+  if (focus) tab.focus();
+  history.replaceState(null, "", "#" + tab.id.replace("tab-", ""));
+  window.scrollTo({ top: 0, behavior: "instant" });
 }
+tabs.forEach(tab => {
+  tab.onclick = () => selectTab(tab);
+  tab.onkeydown = e => {
+    const i = tabs.indexOf(tab);
+    if (e.key === "ArrowRight") selectTab(tabs[(i + 1) % tabs.length], true);
+    else if (e.key === "ArrowLeft") selectTab(tabs[(i - 1 + tabs.length) % tabs.length], true);
+    else if (e.key === "Home") selectTab(tabs[0], true);
+    else if (e.key === "End") selectTab(tabs[tabs.length - 1], true);
+    else return;
+    e.preventDefault();
+  };
+});
 
-// A pair of bars sharing one scale. One measure per chart, never two axes.
-function barPair(name, aVal, bVal, max, aLabel, bLabel, tag) {
+/* ---------------- charts ------------------------------------------------- */
+function barPair(name, a, b, max, aLab, bLab, tag) {
   const w = v => Math.max(v > 0 ? 1.5 : 0, (v / max) * 100);
   return `<div class="barrow">
     <div class="barlabel">
-      <span class="name">${name}${tag ? ` <span class="terminal-tag">${tag}</span>` : ""}</span>
-      <span class="val">${aLabel} <b style="color:var(--ink-3)">vs</b> ${bLabel}</span>
+      <span class="name">${name}${tag ? ` <span class="tag">${tag}</span>` : ""}</span>
+      <span class="val">${aLab} <b style="color:var(--ink-3);font-weight:400">vs</b> ${bLab}</span>
     </div>
-    <div class="track"><div class="bar" style="width:${w(aVal)}%;background:var(--series-failsafe)"></div></div>
-    <div class="track"><div class="bar" style="width:${w(bVal)}%;background:var(--series-naive)"></div></div>
+    <div class="track"><div class="bar" style="width:${w(a)}%;background:var(--series-1)"></div></div>
+    <div class="track"><div class="bar" style="width:${w(b)}%;background:var(--series-2)"></div></div>
   </div>`;
 }
 
-function render(data) {
-  const f = data.strategies.failsafe, n = data.strategies.naive;
+function render(d) {
+  const f = d.strategies.failsafe, n = d.strategies.naive, g = d.diagnosis;
 
-  document.getElementById("sub").textContent =
-    `held-out split · ${f.payments} failed payments · ${rs(data.money_at_risk)} at risk · `
-    + `both strategies over the identical pre-rolled world`;
+  $("tiles").innerHTML = [
+    ["Recovered", `${f.recovered} / ${f.payments}`,
+     `<span class="win">+${f.recovered - n.recovered}</span> vs baseline <b>${n.recovered}</b>`],
+    ["Money recovered", rs(f.money_recovered),
+     `<span class="win">+${rs(f.money_recovered - n.money_recovered)}</span> vs baseline <b>${rs(n.money_recovered)}</b>`],
+    ["Actions spent", f.actions,
+     `<span class="win">${f.actions - n.actions}</span> vs baseline <b>${n.actions}</b>`],
+    ["Compliance violations", f.compliance_violations,
+     `<span class="win">${f.compliance_violations - n.compliance_violations}</span> vs baseline <b>${n.compliance_violations}</b>`],
+  ].map(([k, v, dd]) => `<div class="tile"><div class="k">${k}</div>
+      <div class="v">${v}</div><div class="d">${dd}</div></div>`).join("");
 
-  document.getElementById("tiles").innerHTML = [
-    tile("Recovered", `${f.recovered} / ${f.payments}`,
-         `<span class="up">+${f.recovered - n.recovered}</span> vs baseline <b>${n.recovered}</b>`),
-    tile("Money recovered", rs(f.money_recovered),
-         `<span class="up">+${rs(f.money_recovered - n.money_recovered)}</span> vs baseline <b>${rs(n.money_recovered)}</b>`),
-    tile("Actions spent", f.actions,
-         `<span class="down">${f.actions - n.actions}</span> vs baseline <b>${n.actions}</b>`),
-    tile("Compliance violations", f.compliance_violations,
-         `<span class="up">${f.compliance_violations - n.compliance_violations}</span> vs baseline <b>${n.compliance_violations}</b>`),
-  ].join("");
+  $("costs").innerHTML = `
+    <tr><th>Measure</th><th class="num">Failsafe</th><th class="num">Baseline</th></tr>
+    <tr><td><strong>Wasted actions</strong><br><span style="color:var(--ink-3);font-size:12.5px">Money actions spent on payments nothing could have saved</span></td>
+        <td class="num">${f.wasted_actions}</td><td class="num">${n.wasted_actions}</td></tr>
+    <tr><td><strong>Actions per recovery</strong><br><span style="color:var(--ink-3);font-size:12.5px">Every action is an API call; some are messages to a person</span></td>
+        <td class="num">${(f.actions / f.recovered).toFixed(1)}</td>
+        <td class="num">${(n.actions / n.recovered).toFixed(1)}</td></tr>
+    <tr><td><strong>Payments left unrecovered</strong><br><span style="color:var(--ink-3);font-size:12.5px">All listed with reasons under Recovery</span></td>
+        <td class="num">${f.payments - f.recovered}</td>
+        <td class="num">${n.payments - n.recovered}</td></tr>
+    <tr><td><strong>Diagnosis accuracy</strong><br><span style="color:var(--ink-3);font-size:12.5px">The model is wrong on ${g.total - Math.round(g.model_all * g.total)} of ${g.total}</span></td>
+        <td class="num">${pct(g.model_all)}</td><td class="num">—</td></tr>`;
 
-  // Recovery by archetype
-  const maxA = Math.max(...data.archetypes.map(a => a.total));
-  document.getElementById("archetypes").innerHTML = data.archetypes.map(a =>
-    barPair(a.archetype, a.failsafe, a.naive, maxA,
-            `${a.failsafe}/${a.total}`, `${a.naive}/${a.total}`,
-            a.terminal ? "must not be retried" : "")).join("");
+  const maxA = Math.max(...d.archetypes.map(a => a.total));
+  $("archetypes").innerHTML = d.archetypes.map(a =>
+    barPair(a.archetype, a.failsafe, a.naive, maxA, `${a.failsafe}/${a.total}`,
+            `${a.naive}/${a.total}`, a.terminal ? "must not be retried" : "")).join("");
 
-  // Exceptions, single series by money
-  const maxM = Math.max(...data.exceptions.map(e => e.money), 1);
-  document.getElementById("exceptions").innerHTML = data.exceptions.map(e => `
+  const maxM = Math.max(...d.exceptions.map(e => e.money), 1);
+  $("exceptions").innerHTML = d.exceptions.map(e => `
     <div class="barrow">
       <div class="barlabel"><span class="name">${e.label}</span>
         <span class="val">${e.count} · ${rs(e.money)}</span></div>
       <div class="track"><div class="bar"
-        style="width:${Math.max(1.5, (e.money / maxM) * 100)}%;background:var(--series-failsafe)"></div></div>
+        style="width:${Math.max(1.5, (e.money / maxM) * 100)}%;background:var(--series-1)"></div></div>
     </div>`).join("");
 
-  // Diagnosis quality
-  const d = data.diagnosis;
-  document.getElementById("diagnote").innerHTML =
-    `The model's only job is naming the cause — it never picks the money action. `
-    + `Scored against a keyword lookup on the same ${d.total} payments. `
-    + `Model: <code>${d.model_name}</code>`;
-  document.getElementById("diagnosis").innerHTML =
-    barPair(`All ${d.total} payments`, d.model_all, d.rules_all, 1,
-            pct(d.model_all), pct(d.rules_all)) +
-    barPair(`Generic error string (${d.generic_total})`, d.model_generic, d.rules_generic, 1,
-            pct(d.model_generic), pct(d.rules_generic)) +
-    `<p class="note" style="margin-top:14px">The second row is the one that matters.
-      Those errors say only <em>"Payment failed. Please try again."</em> — the cause
-      has to come from context: how many others failed at that bank in the last hour,
-      this customer's history, the method, the amount. The model doubles the lookup
-      table there. It is still only ${pct(d.model_generic)}, and that is the honest
-      headline.</p>`;
-
-  document.getElementById("costs").innerHTML = `
-    <tr><th>Measure</th><th class="num">Failsafe</th><th class="num">Baseline</th></tr>
-    <tr><td>Wasted actions <span style="color:var(--ink-3)">— spent on payments nothing could save</span></td>
-        <td class="num">${f.wasted_actions}</td><td class="num">${n.wasted_actions}</td></tr>
-    <tr><td>Actions per recovery</td>
-        <td class="num">${(f.actions / f.recovered).toFixed(1)}</td>
-        <td class="num">${(n.actions / n.recovered).toFixed(1)}</td></tr>
-    <tr><td>Payments left unrecovered</td>
-        <td class="num">${f.payments - f.recovered}</td>
-        <td class="num">${n.payments - n.recovered}</td></tr>
-    <tr><td>Diagnosis accuracy</td>
-        <td class="num">${pct(d.model_all)}</td><td class="num">—</td></tr>`;
+  $("diagnote").innerHTML =
+    `Scored on the same ${g.total} payments. Model: <code>${g.model_name}</code>`;
+  $("diagnosis").innerHTML =
+    barPair(`All ${g.total} payments`, g.model_all, g.rules_all, 1,
+            pct(g.model_all), pct(g.rules_all)) +
+    barPair(`Generic error string (${g.generic_total})`, g.model_generic, g.rules_generic, 1,
+            pct(g.model_generic), pct(g.rules_generic)) +
+    `<p class="note" style="margin-top:16px">The second row is the one that matters.
+      Those payments carry an error like <em>“Payment failed. Please try again.”</em>
+      — no answer in the string at all, so the cause has to come from context. The
+      model doubles the lookup table there. It is still only ${pct(g.model_generic)},
+      and that is the honest headline: a lookup table is not the competitor on those
+      rows, a better prompt is.</p>`;
 }
 
-async function loadList() {
+async function loadPayments() {
   const items = await get("/api/payments");
-  document.getElementById("list").innerHTML = items.map(p => `
-    <div class="row" data-id="${p.payment_id}">
-      <div class="dot ${p.recovered ? "ok" : "no"}"></div>
-      <div class="id">${p.payment_id.replace("pay_", "")}</div>
-      <div class="arch">${p.archetype || "—"}
-        ${p.misdiagnosed ? `<span class="flag">· misdiagnosed (${p.truth})</span>` : ""}</div>
-      <div class="amt">${rs(p.amount)}</div>
-    </div>`).join("");
+  $("list").innerHTML = items.map(p => `
+    <button class="row" data-id="${p.payment_id}">
+      <span class="dot ${p.recovered ? "y" : "n"}"></span>
+      <span class="id">${p.payment_id.replace("pay_", "")}</span>
+      <span class="arch">${p.archetype || "—"}
+        ${p.misdiagnosed ? `<span class="flag">· misdiagnosed (${p.truth})</span>` : ""}</span>
+      <span class="amt">${rs(p.amount)}</span>
+    </button>`).join("");
   const rows = [...document.querySelectorAll(".row")];
   rows.forEach(r => r.onclick = () => showChain(r.dataset.id, r));
-  // Open the largest payment straight away — an empty panel explains nothing.
   if (rows.length) showChain(rows[0].dataset.id, rows[0]);
+
+  const wrong = items.filter(p => p.misdiagnosed);
+  $("misdiagnoses").innerHTML =
+    `<tr><th>Payment</th><th>True cause</th><th>Diagnosed</th><th class="num">Amount</th></tr>` +
+    wrong.map(p => `<tr><td><code>${p.payment_id.replace("pay_", "")}</code></td>
+      <td>${p.truth}</td><td class="bad">${p.archetype}</td>
+      <td class="num">${rs(p.amount)}</td></tr>`).join("");
 }
 
 async function showChain(id, row) {
-  if (selected) selected.classList.remove("sel");
-  selected = row; row.classList.add("sel");
+  if (selectedRow) selectedRow.removeAttribute("aria-current");
+  selectedRow = row; row.setAttribute("aria-current", "true");
   const d = await get(`/api/payment/${id}`);
 
   const steps = d.chain.map(e => {
     let cls = "", main = "";
-    if (e.stage === "diagnose") {
-      main = `diagnosed <code>${e.archetype}</code> at ${(e.confidence * 100).toFixed(0)}% confidence
-              <span class="ts">via ${e.diagnosis_method}</span>`;
-    } else if (e.stage === "decide") {
+    if (e.stage === "diagnose")
+      main = `diagnosed <code>${e.archetype}</code> at ${(e.confidence * 100).toFixed(0)}% confidence <span class="ts">via ${e.diagnosis_method}</span>`;
+    else if (e.stage === "decide")
       main = `rule <code>${e.rule_fired}</code> → <code>${e.action}</code>`;
-    } else if (e.stage === "act") {
+    else if (e.stage === "act") {
       cls = "act";
-      main = `<code>${e.action}</code> → ${e.action_result}
-              ${e.provider_ref ? `<span class="ts">${e.provider_ref}</span>` : ""}`;
-    } else if (e.stage === "verify") {
-      main = `mandate checked → <code>${e.action_result}</code>`;
-    } else if (e.stage === "escalate") {
-      main = `human review → <code>${e.action_result}</code>`;
-    } else if (e.stage === "observe") {
-      cls = e.action_result === "captured" ? "ok" : "";
+      main = `<code>${e.action}</code> → ${e.action_result} ${e.provider_ref ? `<span class="ts">${e.provider_ref}</span>` : ""}`;
+    } else if (e.stage === "verify") main = `mandate checked → <code>${e.action_result}</code>`;
+    else if (e.stage === "escalate") main = `human review → <code>${e.action_result}</code>`;
+    else if (e.stage === "observe") {
+      cls = e.action_result === "captured" ? "good" : "";
       main = `provider reports <code>${e.action_result}</code>`;
     } else if (e.stage === "stop") {
-      cls = e.stop_reason === "recovered" ? "ok" : "stop";
+      cls = e.stop_reason === "recovered" ? "good" : "stop";
       main = `stopped: <code>${e.stop_reason}</code>`;
     }
     return `<div class="step ${cls}">
@@ -337,8 +588,8 @@ async function showChain(id, row) {
     </div>`;
   }).join("");
 
-  document.getElementById("detail").innerHTML = `
-    <div style="font-size:15px;font-weight:600">${rs(d.amount)}
+  $("detail").innerHTML = `
+    <div style="font-size:17px;font-weight:640">${rs(d.amount)}
       <code style="margin-left:8px">${id}</code></div>
     <div class="facts">
       <span>true cause <b>${d.truth}</b></span>
@@ -353,10 +604,12 @@ async function showChain(id, row) {
 (async () => {
   try {
     render(await get("/api/overview"));
-    await loadList();
+    await loadPayments();
+    const hash = location.hash.slice(1);
+    const target = tabs.find(t => t.id === "tab-" + hash);
+    if (target) selectTab(target);
   } catch (e) {
-    document.getElementById("err").innerHTML = `<div class="banner">${e.message}</div>`;
-    document.getElementById("sub").textContent = "no run loaded";
+    $("err").innerHTML = `<div class="banner">${e.message}</div>`;
   }
 })();
 </script>
